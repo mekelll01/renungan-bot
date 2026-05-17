@@ -1,0 +1,5 @@
+groq
+python-telegram-bot
+apscheduler
+pytz
+python-dotenv
