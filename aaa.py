@@ -11,10 +11,6 @@ Isi file .env:
 
 Jalankan:
     python main.py
-
-Command Telegram:
-    /renungan - Minta renungan kapan saja
-    /start    - Pesan sambutan
 """
 
 import asyncio
@@ -26,9 +22,8 @@ import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 from groq import Groq
-from telegram import Bot, Update
+from telegram import Bot
 from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, ContextTypes
 
 # ── Konfigurasi ──────────────────────────────────────────────────────────────
 
@@ -96,45 +91,25 @@ Gunakan format Markdown Telegram: *bold* dan _italic_. Renungan harus original d
     return response.choices[0].message.content
 
 
-# ── Kirim Renungan (jadwal otomatis) ─────────────────────────────────────────
+# ── Kirim ke Telegram ─────────────────────────────────────────────────────────
 
-async def kirim_renungan_otomatis():
-    log.info("Mengirim renungan otomatis...")
+async def kirim_renungan():
+    log.info("Memulai pengiriman renungan harian...")
     try:
+        log.info("Menghubungi Groq AI...")
         teks = generate_renungan()
+        log.info("Renungan selesai dibuat (%d karakter)", len(teks))
+
         bot = Bot(token=TELEGRAM_BOT_TOKEN)
         await bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=teks,
             parse_mode=ParseMode.MARKDOWN,
         )
-        log.info("✅ Renungan otomatis berhasil dikirim!")
+        log.info("✅ Renungan berhasil dikirim!")
+
     except Exception as e:
-        log.error("❌ Gagal kirim otomatis: %s", e, exc_info=True)
-
-
-# ── Command /start ────────────────────────────────────────────────────────────
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🙏 *Selamat datang di Bot Renungan Harian!*\n\n"
-        "Aku akan mengirimkan renungan harian setiap jam *05:00 WIB*.\n\n"
-        "Ketik /renungan kapan saja untuk minta renungan sekarang.",
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-# ── Command /renungan ─────────────────────────────────────────────────────────
-
-async def cmd_renungan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⏳ Sedang menyiapkan renungan untukmu...")
-    try:
-        teks = generate_renungan()
-        await update.message.reply_text(teks, parse_mode=ParseMode.MARKDOWN)
-        log.info("✅ Renungan on-demand dikirim ke %s", update.effective_user.first_name)
-    except Exception as e:
-        await update.message.reply_text("❌ Maaf, gagal membuat renungan. Coba lagi ya.")
-        log.error("❌ Gagal kirim on-demand: %s", e, exc_info=True)
+        log.error("❌ Gagal: %s", e, exc_info=True)
 
 
 # ── Cek Konfigurasi ───────────────────────────────────────────────────────────
@@ -160,15 +135,9 @@ def cek_konfigurasi():
 async def main():
     cek_konfigurasi()
 
-    # Setup aplikasi Telegram
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("renungan", cmd_renungan))
-
-    # Setup scheduler untuk kiriman otomatis jam 05:00
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
     scheduler.add_job(
-        kirim_renungan_otomatis,
+        kirim_renungan,
         trigger="cron",
         hour=JAM_KIRIM,
         minute=MENIT_KIRIM,
@@ -176,13 +145,11 @@ async def main():
     )
     scheduler.start()
 
-    log.info("🤖 Bot aktif! Renungan otomatis jam %02d:%02d WIB setiap hari.", JAM_KIRIM, MENIT_KIRIM)
-    log.info("   Ketik /renungan di Telegram untuk minta renungan kapan saja.")
+    log.info("🤖 Bot aktif! Renungan dikirim jam %02d:%02d WIB setiap hari.", JAM_KIRIM, MENIT_KIRIM)
 
-    # Jalankan bot (polling)
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
+    # Kirim langsung sekali sebagai tes
+    log.info("📤 Mengirim renungan tes sekarang...")
+    await kirim_renungan()
 
     try:
         while True:
@@ -190,9 +157,6 @@ async def main():
     except (KeyboardInterrupt, SystemExit):
         log.info("Bot dihentikan.")
         scheduler.shutdown()
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
 
 
 if __name__ == "__main__":
