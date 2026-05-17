@@ -1,13 +1,13 @@
 """
-Bot Renungan Harian Alkitab - Telegram (pakai Google Gemini - GRATIS)
-======================================================================
+Bot Renungan Harian Alkitab - Telegram (pakai Groq - GRATIS)
+=============================================================
 Install dulu:
-    pip install google-generativeai python-telegram-bot apscheduler pytz python-dotenv
+    pip install groq python-telegram-bot apscheduler pytz python-dotenv
 
 Isi file .env:
     TELEGRAM_BOT_TOKEN=...
     TELEGRAM_CHAT_ID=...
-    GEMINI_API_KEY=...
+    GROQ_API_KEY=...
 
 Jalankan:
     python main.py
@@ -18,10 +18,10 @@ import logging
 import os
 from datetime import datetime
 
-import google.generativeai as genai
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+from groq import Groq
 from telegram import Bot
 from telegram.constants import ParseMode
 
@@ -31,7 +31,7 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
-GEMINI_API_KEY     = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY       = os.getenv("GROQ_API_KEY")
 
 TIMEZONE    = pytz.timezone("Asia/Jakarta")
 JAM_KIRIM   = 5
@@ -53,8 +53,7 @@ log = logging.getLogger(__name__)
 # ── Generate Renungan ─────────────────────────────────────────────────────────
 
 def generate_renungan() -> str:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash-lite")
+    client = Groq(api_key=GROQ_API_KEY)
 
     hari_ini = datetime.now(TIMEZONE).strftime("%A, %d %B %Y")
 
@@ -83,8 +82,13 @@ Selamat beraktivitas dan Tuhan memberkati! 🕊️
 
 Gunakan format Markdown Telegram: *bold* dan _italic_. Renungan harus original dan menyentuh hati."""
 
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=1500,
+    )
+
+    return response.choices[0].message.content
 
 
 # ── Kirim ke Telegram ─────────────────────────────────────────────────────────
@@ -92,7 +96,7 @@ Gunakan format Markdown Telegram: *bold* dan _italic_. Renungan harus original d
 async def kirim_renungan():
     log.info("Memulai pengiriman renungan harian...")
     try:
-        log.info("Menghubungi Gemini AI...")
+        log.info("Menghubungi Groq AI...")
         teks = generate_renungan()
         log.info("Renungan selesai dibuat (%d karakter)", len(teks))
 
@@ -114,7 +118,7 @@ def cek_konfigurasi():
     missing = [k for k, v in {
         "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
         "TELEGRAM_CHAT_ID":   TELEGRAM_CHAT_ID,
-        "GEMINI_API_KEY":     GEMINI_API_KEY,
+        "GROQ_API_KEY":       GROQ_API_KEY,
     }.items() if not v]
 
     if missing:
