@@ -1,5 +1,6 @@
-google-generativeai
+
 python-telegram-bot
 apscheduler
 pytz
 python-dotenv
+groq
